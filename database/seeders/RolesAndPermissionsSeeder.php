@@ -41,7 +41,7 @@ class RolesAndPermissionsSeeder extends Seeder
         Role::create(['name' => 'admin']);
         Role::create(['name' => 'siswa']);
         Role::create(['name' => 'tu']);
-        Role::create(['name' => 'guru-piket']);
+        Role::create(['name' => 'guru']);
         Role::create(['name' => 'sekretaris']);
         // this can be done as separate statements
         $role = Role::create(['name' => 'writer']);
