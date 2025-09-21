@@ -133,16 +133,15 @@ const onSubmit = () => {
                 <!-- Wali Kelas -->
                 <div class="grid w-full max-w-sm items-center gap-1.5">
                     <Label for="homeroom_teacher_id">Wali Kelas *</Label>
-                    <Select v-model="form.homeroom_teacher_id">
-                        <SelectTrigger id="homeroom_teacher_id" class="w-full">
-                            <SelectValue placeholder="Pilih Wali Kelas" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
-                                {{ teacher.name }}
-                            </SelectItem>
-                        </SelectContent>
-                    </Select>
+                    <select
+                        v-model="form.homeroom_teacher_id"
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none"
+                    >
+                        <option value="">Tidak ada</option>
+                        <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
+                            {{ teacher.name }}
+                        </option>
+                    </select>
                     <InputError :message="form.errors.homeroom_teacher_id" />
                 </div>
 

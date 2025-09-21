@@ -17,8 +17,10 @@ return new class extends Migration
             $table->foreignId('violation_type_id')->constrained()->onDelete('cascade');
             $table->foreignId('classroom_id')->constrained()->onDelete('cascade'); // kelas saat kejadian
             $table->foreignId('homeroom_teacher_id')->constrained('users')->onDelete('set null')->nullable(); // walas saat itu
+            $table->foreignId('counselor_id')->nullable()->constrained('users')->onDelete('set null'); // konselor yang menangani
             $table->date('violation_date'); // tanggal kejadian
             $table->text('notes')->nullable();
+            $table->text('follow_up')->nullable(); // tindak lanjut
             $table->timestamps();
         });
 

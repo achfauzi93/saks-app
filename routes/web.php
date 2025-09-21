@@ -1,8 +1,14 @@
 <?php
 
-use App\Http\Controllers\RoleController;
-use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\RoleController;
+use App\Http\Controllers\StudentController;
+use App\Http\Controllers\HomeroomController;
+use App\Http\Controllers\ClassroomController;
+use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\ViolationTypeController;
+use App\Http\Controllers\StudentViolationController;
 
 Route::get('/', function () {
     return Inertia::render('Welcome');
@@ -17,24 +23,26 @@ Route::group(['middleware' => ['auth']], function () {
     Route::resource('roles', RoleController::class);
     Route::resource('users', \App\Http\Controllers\UserController::class)->except('show');
 
-    Route::resource('academic-years', \App\Http\Controllers\AcademicYearController::class)->except('show');
-    Route::resource('violation-types', \App\Http\Controllers\ViolationTypeController::class)->except('show', 'create', 'edit');
-    Route::resource('students', \App\Http\Controllers\StudentController::class);
-    Route::post('students/import', [\App\Http\Controllers\StudentController::class, 'import'])->name('students.import');
-    Route::post('students/import-dapodik', [\App\Http\Controllers\StudentController::class, 'importDapodik'])->name('students.import-dapodik');
+    Route::resource('academic-years', AcademicYearController::class)->except('show');
+    Route::resource('violation-types', ViolationTypeController::class)->except('show', 'create', 'edit');
+    Route::resource('students', StudentController::class);
+    Route::post('students/import', [StudentController::class, 'import'])->name('students.import');
+    Route::post('students/import-dapodik', [StudentController::class, 'importDapodik'])->name('students.import-dapodik');
 
-    Route::resource('classrooms', \App\Http\Controllers\ClassroomController::class)->except('show', 'edit');
-
-    // Student Class Assignments
-    Route::get('student-class-assignments', [\App\Http\Controllers\StudentClassAssignmentController::class, 'index'])->name('student-class-assignments.index');
-    Route::post('student-class-assignments', [\App\Http\Controllers\StudentClassAssignmentController::class, 'store'])->name('student-class-assignments.store');
-    Route::post('student-class-assignments/transfer', [\App\Http\Controllers\StudentClassAssignmentController::class, 'transfer'])->name('student-class-assignments.transfer');
-    Route::delete('student-class-assignments/{assignment}', [\App\Http\Controllers\StudentClassAssignmentController::class, 'destroy'])->name('student-class-assignments.destroy');
+    Route::resource('classrooms', ClassroomController::class)->except('show', 'edit');
+    Route::get('classrooms/{classroom}/students', [ClassroomController::class, 'getStudents'])
+        ->name('classrooms.students');
 
 
-    Route::resource('student-violations', \App\Http\Controllers\StudentViolationController::class)->except(['show', 'edit', 'update']);
-    Route::get('student-violations/students-by-classroom', [\App\Http\Controllers\StudentViolationController::class, 'getStudentsByClassroom'])
+    Route::resource('student-violations', StudentViolationController::class)->except(['show', 'edit', 'update']);
+    Route::get('student-violations/students-by-classroom', [StudentViolationController::class, 'getStudentsByClassroom'])
         ->name('student-violations.students-by-classroom');
+
+    // Homeroom — hanya untuk guru yang jadi walas
+    Route::middleware(['auth'])->group(function () {
+        Route::get('homeroom', [HomeroomController::class, 'index'])->name('homeroom.index');
+        Route::get('homeroom/{classroom}', [HomeroomController::class, 'show'])->name('homeroom.show');
+    });
 });
 
 

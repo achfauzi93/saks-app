@@ -2,21 +2,26 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AcademicYear;
-use App\Models\Classroom;
-use App\Models\Student;
-use App\Models\StudentClassAssignment;
-use App\Models\StudentViolation;
-use App\Models\ViolationType;
-use Illuminate\Http\Request;
+use App\Models\User;
 use Inertia\Inertia;
 use Inertia\Response;
+use App\Models\Student;
+use App\Models\Classroom;
+use App\Models\AcademicYear;
+use Illuminate\Http\Request;
+use App\Models\ViolationType;
+use App\Models\StudentViolation;
+use App\Http\Requests\StoreStudentViolationRequest;
 
 class StudentViolationController extends Controller
 {
+
+    /**
+     * Display a listing of the resource.
+     */
     public function index(Request $request): Response
     {
-        $query = StudentViolation::with(['student', 'violationType', 'classroom', 'homeroomTeacher'])
+        $query = StudentViolation::with(['student', 'violationType', 'classroom', 'homeroomTeacher', 'counselor'])
             ->latest();
 
         // Filter
@@ -48,6 +53,8 @@ class StudentViolationController extends Controller
         $violationTypes = ViolationType::where('is_active', true)->get();
         $activeAcademicYear = AcademicYear::where('is_active', true)->first();
 
+        $counselors = User::role('guru-bk')->get();
+
         return Inertia::render('StudentViolations/Index', [
             'violations' => $violations,
             'filters' => $request->only('student_id', 'classroom_id', 'violation_type_id', 'date_from', 'date_to'),
@@ -55,12 +62,15 @@ class StudentViolationController extends Controller
             'classrooms' => $classrooms->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
             'violationTypes' => $violationTypes->map(fn($v) => ['id' => $v->id, 'name' => $v->name]),
             'activeAcademicYear' => $activeAcademicYear,
+            'counselors' => $counselors->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
         ]);
     }
 
+    /**
+     * Show the form for creating a new resource.
+     */
     public function create()
     {
-        // Ambil tahun ajaran aktif
         $activeYear = AcademicYear::where('is_active', true)->first();
         if (!$activeYear) {
             return to_route('student-violations.index')->withError('Tidak ada tahun ajaran aktif. Silakan atur tahun ajaran aktif terlebih dahulu.');
@@ -68,6 +78,7 @@ class StudentViolationController extends Controller
 
         // Hanya ambil siswa aktif di tahun ajaran aktif
         $students = Student::activeInAcademicYear($activeYear->id)->get();
+        $counselors = User::role('guru-bk')->get();
 
         $violationTypes = ViolationType::where('is_active', true)->get();
 
@@ -79,42 +90,48 @@ class StudentViolationController extends Controller
             ]),
             'violationTypes' => $violationTypes->map(fn($v) => ['id' => $v->id, 'name' => $v->name]),
             'active_academic_year_id' => $activeYear->id,
+            'counselors' => $counselors->map(fn($c) => ['id' => $c->id, 'name' => $c->name]),
         ]);
     }
 
-    public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'student_id' => 'required|exists:students,id',
-            'violation_type_id' => 'required|exists:violation_types,id',
-            'violation_date' => 'required|date',
-            'notes' => 'nullable|string',
-        ]);
 
-        // Cari assignment aktif pada tanggal kejadian
-        $assignment = StudentClassAssignment::where('student_id', $validated['student_id'])
-            ->where('start_date', '<=', $validated['violation_date'])
-            ->where(function ($q) use ($validated) {
-                $q->where('end_date', '>=', $validated['violation_date'])
-                    ->orWhereNull('end_date');
+    /**
+     * Store a newly created resource in storage.
+     */
+    public function store(StoreStudentViolationRequest $request)
+    {
+        $validated = $request->validated();
+
+        $activeYear = active_academic_year();
+        if (!$activeYear) {
+            return to_route('student-violations.index')->withError('Tidak ada tahun ajaran aktif.');
+        }
+
+        $classroom = Classroom::where('academic_year_id', $activeYear->id)
+            ->where('is_active', true)
+            ->whereHas('students', function ($q) use ($validated) {
+                $q->where('students.id', $validated['student_id']);
             })
             ->first();
 
-        if (!$assignment) {
-            return to_route('student-violations.index')->withError('Siswa tidak terdaftar di kelas manapun pada tanggal tersebut.');
+        if (!$classroom) {
+            return to_route('student-violations.index')->withError('Siswa tidak memiliki kelas aktif.');
         }
 
-        $classroom = $assignment->classroom;
         $homeroomTeacherId = $classroom->homeroom_teacher_id;
+        if (!$homeroomTeacherId) {
+            return to_route('student-violations.index')->withError('Gagal menyimpan, Kelas belum memiliki walikelas, harap hubungi admin untuk penambahan walikelas.');
+        }
 
-        // Simpan pelanggaran
         StudentViolation::create([
             'student_id' => $validated['student_id'],
             'violation_type_id' => $validated['violation_type_id'],
+            'violation_date' => $validated['violation_date'],
             'classroom_id' => $classroom->id,
             'homeroom_teacher_id' => $homeroomTeacherId,
-            'violation_date' => $validated['violation_date'],
             'notes' => $validated['notes'],
+            'follow_up' => $validated['follow_up'] ?? null,
+            'counselor_id' => $validated['counselor_id'] ?? null,
         ]);
 
         return to_route('student-violations.index')->with('success', 'Catatan pelanggaran berhasil ditambahkan.');
@@ -126,31 +143,27 @@ class StudentViolationController extends Controller
         return to_route('student-violations.index')->with('success', 'Catatan pelanggaran berhasil dihapus.');
     }
 
-
-    public function getStudentsByClassroom(Request $request)
+    /**
+     * Ambil siswa berdasarkan kelas
+     * @return \Illuminate\Http\JsonResponse
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getStudentsByClassroom(Request $request): \Illuminate\Http\JsonResponse
     {
         $classroomId = $request->get('classroom_id');
-        $date = $request->get('date') ?? now()->toDateString();
-
         if (!$classroomId) {
             return response()->json([]);
         }
 
-        // Cari siswa yang aktif di kelas ini pada tanggal tertentu
-        $assignments = StudentClassAssignment::where('classroom_id', $classroomId)
-            ->where('start_date', '<=', $date)
-            ->where(function ($q) use ($date) {
-                $q->where('end_date', '>=', $date)
-                    ->orWhereNull('end_date');
-            })
-            ->with('student')
-            ->get();
+        $students = Student::whereHas('classrooms', function ($q) use ($classroomId) {
+            $q->where('classroom_id', $classroomId);
+        })->get();
 
         return response()->json(
-            $assignments->map(fn($a) => [
-                'id' => $a->student->id,
-                'name' => $a->student->name,
-                'student_id' => $a->student->student_id,
+            $students->map(fn($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'student_id' => $s->student_id,
             ])
         );
     }

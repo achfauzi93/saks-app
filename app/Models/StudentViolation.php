@@ -16,6 +16,8 @@ class StudentViolation extends Model
         'homeroom_teacher_id',
         'violation_date',
         'notes',
+        'follow_up',
+        'counselor_id',
     ];
 
     protected $casts = [
@@ -41,5 +43,10 @@ class StudentViolation extends Model
     public function homeroomTeacher()
     {
         return $this->belongsTo(User::class, 'homeroom_teacher_id');
+    }
+
+    public function counselor()
+    {
+        return $this->belongsTo(User::class, 'counselor_id');
     }
 }

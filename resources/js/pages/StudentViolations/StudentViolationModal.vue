@@ -11,31 +11,74 @@ import axios from 'axios';
 import { defineEmits, defineProps, ref, watch } from 'vue';
 
 const props = defineProps({
+    // --- Props Umum ---
     isOpen: {
         type: Boolean,
         required: true,
     },
+    mode: {
+        // Prop baru untuk menentukan mode
+        type: String,
+        default: 'create', // 'create' atau 'edit'
+        validator: (value) => ['create', 'edit'].includes(value),
+    },
+    // --- Props Data ---
     violationTypes: {
         type: Array,
         required: true,
     },
+    counselors: {
+        type: Array,
+        default: () => [],
+    },
+    // --- Props untuk Mode Edit ---
+    initialData: {
+        // Data pelanggaran yang akan diedit
+        type: Object,
+        default: null,
+    },
+    // Data tambahan untuk mode edit jika diperlukan (misalnya daftar siswa)
+    // Kita bisa mengirimkannya, atau fetch ulang. Untuk kesederhanaan, kita fetch ulang.
 });
 
 const emit = defineEmits(['update:isOpen', 'submit']);
 
+// --- State untuk Dropdown ---
 const classrooms = ref([]);
 const selectedClassroom = ref('');
 const studentsInClassroom = ref([]);
 const isLoadingStudents = ref(false);
 
+// --- Form Inertia ---
 const form = useForm({
     student_id: '',
     violation_type_id: '',
     violation_date: new Date().toISOString().split('T')[0],
     notes: '',
+    counselor_id: '',
+    follow_up: '',
 });
 
-// ✅ Perbaikan: fetchClassrooms tetap pakai axios
+// Fungsi pembantu untuk memformat tanggal dari API ke format input date
+const formatDateForInput = (dateString) => {
+    if (!dateString) return '';
+    // Jika dateString sudah dalam format YYYY-MM-DD, kembalikan apa adanya
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+        return dateString;
+    }
+    // Jika dateString adalah ISO string (2024-06-18T00:00:00.000000Z), ekstrak tanggalnya
+    const date = new Date(dateString);
+    if (isNaN(date)) return ''; // Jika tidak valid, kembalikan string kosong
+
+    const year = date.getFullYear();
+    // Pastikan bulan dan tanggal dua digit
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+
+    return `${year}-${month}-${day}`;
+};
+
+// --- Fetch Data untuk Dropdown ---
 const fetchClassrooms = async () => {
     try {
         const response = await axios.get(
@@ -51,11 +94,10 @@ const fetchClassrooms = async () => {
     }
 };
 
-// ✅ Perbaikan: fetchStudentsByClassroom jadi async function — TANPA nested function
 const fetchStudentsByClassroom = async () => {
     if (!selectedClassroom.value) {
         studentsInClassroom.value = [];
-        form.student_id = '';
+        // Jangan reset form.student_id di sini jika sedang edit dan kelas belum dipilih
         return;
     }
 
@@ -65,12 +107,15 @@ const fetchStudentsByClassroom = async () => {
         const response = await axios.get(route('student-violations.students-by-classroom'), {
             params: {
                 classroom_id: selectedClassroom.value,
-                date: form.violation_date,
             },
         });
 
         studentsInClassroom.value = response.data;
-        form.student_id = '';
+        // Hanya reset student_id jika tidak dalam mode edit atau jika kelas berubah
+        // di mode edit, student_id akan diisi oleh watch initialData
+        if (props.mode !== 'edit') {
+            form.student_id = '';
+        }
     } catch (error) {
         console.error('Gagal fetch siswa:', error);
         studentsInClassroom.value = [];
@@ -79,42 +124,73 @@ const fetchStudentsByClassroom = async () => {
     }
 };
 
-// Watchers
+// --- Watchers ---
 watch(selectedClassroom, fetchStudentsByClassroom);
 
+// --- Watcher Utama: Saat Modal Dibuka atau Props Berubah ---
 watch(
-    () => form.violation_date,
-    () => {
-        if (selectedClassroom.value) {
-            fetchStudentsByClassroom();
-        }
-    },
-);
-
-watch(
-    () => props.isOpen,
-    (open) => {
-        if (open) {
+    [() => props.isOpen, () => props.initialData, () => props.mode],
+    ([newIsOpen, newInitialData, newMode]) => {
+        if (newIsOpen) {
+            // 1. Fetch kelas
             fetchClassrooms();
-            selectedClassroom.value = '';
-            studentsInClassroom.value = [];
-            form.reset();
-            form.violation_date = new Date().toISOString().split('T')[0];
+
+            if (newMode === 'edit' && newInitialData) {
+                // 2a. Mode Edit: Isi form dengan data awal
+                form.reset(); // Reset dulu untuk menghapus error sebelumnya
+                form.student_id = newInitialData.student_id || '';
+                form.violation_type_id = newInitialData.violation_type_id || '';
+                form.violation_date = formatDateForInput(newInitialData.violation_date);
+                form.notes = newInitialData.notes || '';
+                form.counselor_id = newInitialData.counselor_id || '';
+                form.follow_up = newInitialData.follow_up || '';
+
+                // Reset state dropdown
+                selectedClassroom.value = newInitialData.classroom?.id || '';
+                studentsInClassroom.value = []; // Akan diisi oleh fetchStudentsByClassroom jika kelas ada
+
+                // 2b. Jika kelas awal diketahui, fetch siswanya
+                if (selectedClassroom.value) {
+                    // Tunda sedikit agar Select bisa dirender dulu
+                    setTimeout(() => {
+                        fetchStudentsByClassroom();
+                    }, 100);
+                }
+            } else {
+                // 2c. Mode Create: Reset form dan state
+                form.reset();
+                form.violation_date = new Date().toISOString().split('T')[0]; // Default ke hari ini
+                selectedClassroom.value = '';
+                studentsInClassroom.value = [];
+            }
+            form.clearErrors(); // Bersihkan error dari submit sebelumnya
         } else {
+            // Saat modal ditutup
             form.clearErrors();
         }
     },
     { immediate: true },
 );
 
+// --- Submit Handler ---
 const onSubmit = () => {
-    form.post(route('student-violations.store'), {
-        preserveScroll: true,
-        onSuccess: () => {
-            emit('submit');
-            emit('update:isOpen', false);
-        },
-    });
+    if (props.mode === 'create') {
+        form.post(route('student-violations.store'), {
+            preserveScroll: true,
+            onSuccess: () => {
+                emit('submit');
+                emit('update:isOpen', false);
+            },
+        });
+    } else if (props.mode === 'edit' && props.initialData) {
+        form.put(route('student-violations.update', props.initialData.id), {
+            preserveScroll: true,
+            onSuccess: () => {
+                emit('submit');
+                emit('update:isOpen', false);
+            },
+        });
+    }
 };
 </script>
 
@@ -122,12 +198,14 @@ const onSubmit = () => {
     <Dialog :open="isOpen" @update:open="$emit('update:isOpen', $event)">
         <DialogContent class="sm:max-w-[425px]">
             <DialogHeader>
-                <DialogTitle>Tambah Catatan Pelanggaran</DialogTitle>
-                <DialogDescription> Pilih kelas, lalu pilih siswa yang melakukan pelanggaran. </DialogDescription>
+                <DialogTitle>{{ mode === 'create' ? 'Tambah' : 'Edit' }} Catatan Pelanggaran</DialogTitle>
+                <DialogDescription>
+                    {{ mode === 'create' ? 'Pilih kelas, lalu pilih siswa yang melakukan pelanggaran.' : 'Perbarui informasi pelanggaran.' }}
+                </DialogDescription>
             </DialogHeader>
             <form @submit.prevent="onSubmit" class="grid gap-4 py-4">
-                <!-- Kelas -->
-                <div class="grid w-full max-w-sm items-center gap-1.5">
+                <!-- Kelas (Hanya untuk create) -->
+                <div v-if="mode === 'create'" class="grid w-full max-w-sm items-center gap-1.5">
                     <Label for="classroom_id">Kelas *</Label>
                     <Select v-model="selectedClassroom">
                         <SelectTrigger id="classroom_id" class="w-full">
@@ -141,8 +219,16 @@ const onSubmit = () => {
                     </Select>
                 </div>
 
-                <!-- Siswa -->
-                <div class="grid w-full max-w-sm items-center gap-1.5">
+                <!-- Informasi Siswa (Read-only di mode edit) -->
+                <div v-if="mode === 'edit' && initialData" class="grid w-full max-w-sm items-center gap-1.5">
+                    <Label>Siswa</Label>
+                    <div class="rounded-md border border-input bg-muted px-3 py-2 text-sm">
+                        {{ initialData.student?.name }} ({{ initialData.student?.student_id }})
+                    </div>
+                </div>
+
+                <!-- Siswa (Dropdown di mode create, hidden di mode edit) -->
+                <div v-if="mode === 'create'" class="grid w-full max-w-sm items-center gap-1.5">
                     <Label for="student_id">Siswa *</Label>
                     <Select v-model="form.student_id" :disabled="!selectedClassroom || isLoadingStudents">
                         <SelectTrigger id="student_id" class="w-full">
@@ -214,14 +300,48 @@ const onSubmit = () => {
                     <InputError :message="form.errors.notes" />
                 </div>
 
+                <div class="grid w-full max-w-sm items-center gap-1.5">
+                    <Label for="follow_up">Tindak Lanjut</Label>
+                    <textarea
+                        id="follow_up"
+                        v-model="form.follow_up"
+                        rows="3"
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none"
+                        placeholder="Tindak lanjut dari kasus ini..."
+                    ></textarea>
+                </div>
+
+                <!-- Guru BK -->
+                <div class="grid w-full max-w-sm items-center gap-1.5">
+                    <Label for="counselor_id">Guru BK</Label>
+                    <Select v-model="form.counselor_id">
+                        <SelectTrigger id="counselor_id" class="w-full">
+                            <SelectValue placeholder="Pilih Guru BK" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem v-for="counselor in counselors" :key="counselor.id" :value="counselor.id">
+                                {{ counselor.name }}
+                            </SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+
                 <!-- Submit -->
                 <DialogFooter>
-                    <Button type="submit" :disabled="form.processing || !form.student_id">
-                        <span v-if="form.processing"> Menyimpan... </span>
-                        <span v-else> Simpan </span>
+                    <Button type="submit" :disabled="form.processing || (mode === 'create' && !form.student_id)">
+                        <span v-if="form.processing">
+                            {{ mode === 'create' ? 'Menyimpan...' : 'Memperbarui...' }}
+                        </span>
+                        <span v-else>
+                            {{ mode === 'create' ? 'Simpan' : 'Perbarui' }}
+                        </span>
                     </Button>
                 </DialogFooter>
             </form>
         </DialogContent>
     </Dialog>
 </template>
+
+<style scoped>
+/* Tambahkan style khusus jika diperlukan */
+</style>

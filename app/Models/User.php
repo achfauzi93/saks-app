@@ -63,4 +63,16 @@ class User extends Authenticatable
                 });
         });
     }
+
+    // Relasi untuk mengambil kelas sebagai wali kelas
+    public function classroomAsHomeroom()
+    {
+        return $this->hasOne(Classroom::class, 'homeroom_teacher_id');
+    }
+
+    // percobaan dari qwen ai
+    public function homeroomClasses()
+    {
+        return $this->hasMany(Classroom::class, 'homeroom_teacher_id');
+    }
 }

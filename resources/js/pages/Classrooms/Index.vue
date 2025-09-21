@@ -1,4 +1,3 @@
-<!-- resources/js/Pages/Classrooms/Index.vue -->
 <script setup>
 import Pagination from '@/components/Pagination.vue';
 import { Button } from '@/components/ui/button';
@@ -7,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
+import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { ref } from 'vue';
 
@@ -65,6 +65,25 @@ const clearSearch = () => {
 
 const handleModalSubmit = () => {
     router.reload();
+};
+
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+
+// Tambahkan state
+const isStudentModalOpen = ref(false);
+const selectedClassroomName = ref('');
+const classroomStudents = ref([]);
+
+// Method untuk fetch siswa
+const showStudents = async (classroomId, className) => {
+    try {
+        const response = await axios.get(route('classrooms.students', { classroom: classroomId }));
+        classroomStudents.value = response.data.students;
+        selectedClassroomName.value = className;
+        isStudentModalOpen.value = true;
+    } catch (error) {
+        console.error('Gagal fetch siswa:', error);
+    }
 };
 </script>
 
@@ -131,11 +150,14 @@ const handleModalSubmit = () => {
                                     <StatusBadge :is-active="Boolean(item.is_active)" />
                                 </TableCell>
                                 <TableCell class="text-right">
-                                    <ActionButtons
-                                        :is-active="Boolean(item.is_active)"
-                                        @edit="openEditModal(item)"
-                                        @delete="deleteClassroom(item.id)"
-                                    />
+                                    <div class="flex justify-end space-x-2">
+                                        <Button size="sm" variant="outline" @click="showStudents(item.id, item.name)"> Lihat Siswa </Button>
+                                        <ActionButtons
+                                            :is-active="Boolean(item.is_active)"
+                                            @edit="openEditModal(item)"
+                                            @delete="deleteClassroom(item.id)"
+                                        />
+                                    </div>
                                 </TableCell>
                             </TableRow>
                             <TableRow v-if="classrooms.data.length === 0">
@@ -165,4 +187,36 @@ const handleModalSubmit = () => {
             @submit="handleModalSubmit"
         />
     </AppLayout>
+
+    <!-- Modal Daftar Siswa -->
+    <Dialog v-model:open="isStudentModalOpen">
+        <DialogContent class="sm:max-w-2xl">
+            <DialogHeader>
+                <DialogTitle>Daftar Siswa: {{ selectedClassroomName }}</DialogTitle>
+                <DialogDescription> Berikut adalah daftar siswa yang terdaftar di kelas ini. </DialogDescription>
+            </DialogHeader>
+            <div class="mt-4 max-h-96 overflow-y-auto">
+                <Table>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>NIS</TableHead>
+                            <TableHead>Nama</TableHead>
+                        </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                        <TableRow v-for="student in classroomStudents" :key="student.id">
+                            <TableCell class="font-mono text-sm">{{ student.student_id }}</TableCell>
+                            <TableCell>{{ student.name }}</TableCell>
+                        </TableRow>
+                        <TableRow v-if="classroomStudents.length === 0">
+                            <TableCell colspan="2" class="py-4 text-center text-muted-foreground"> Tidak ada siswa di kelas ini. </TableCell>
+                        </TableRow>
+                    </TableBody>
+                </Table>
+            </div>
+            <DialogFooter class="mt-4">
+                <Button @click="isStudentModalOpen = false"> Tutup </Button>
+            </DialogFooter>
+        </DialogContent>
+    </Dialog>
 </template>

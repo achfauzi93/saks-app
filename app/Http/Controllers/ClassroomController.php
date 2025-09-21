@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
 use App\Models\Classroom;
+use App\Models\Student;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Validation\Rule;
+
 
 class ClassroomController extends Controller
 {
@@ -20,7 +22,6 @@ class ClassroomController extends Controller
 
     public function index(Request $request)
     {
-        // Query dasar
         $query = Classroom::with(['homeroomTeacher', 'academicYear']);
 
         // Default filter: tahun ajaran aktif
@@ -40,15 +41,14 @@ class ClassroomController extends Controller
             $query->where('name', 'like', '%' . $search . '%');
         }
 
-        // 🚨 JANGAN GANTI INI — tetap pakai paginate() untuk response normal
-        $classrooms = $query->latest()->paginate(10);
+        $classrooms = $query->orderBy('name', 'asc')->paginate(10);
 
-        // 💡 HANYA jika diminta data sederhana (untuk dropdown AJAX)
+        // data untuk dropdown
         if ($request->get('only_classrooms')) {
-            // Ambil SEMUA data (tanpa pagination) untuk dropdown
             $allClassrooms = Classroom::with('academicYear')
                 ->where('academic_year_id', $selectedYearId ?? $defaultYearId)
                 ->where('is_active', true)
+                ->orderBy('name', 'asc')
                 ->get();
 
             return response()->json([
@@ -65,7 +65,7 @@ class ClassroomController extends Controller
         // Response normal untuk Inertia (dengan pagination)
         $academicYears = AcademicYear::all();
         $activeAcademicYear = AcademicYear::where('is_active', true)->first();
-        $teachers = User::role('guru')->get();
+        $teachers = User::role('guru')->orderBy('name', 'asc')->get();
 
         return Inertia::render('Classrooms/Index', [
             'classrooms' => $classrooms, // ← INI TETAP PAGINATE
@@ -93,11 +93,32 @@ class ClassroomController extends Controller
         return to_route('classrooms.index')->with('success', 'Kelas berhasil ditambahkan.');
     }
 
+
     public function update(Request $request, Classroom $classroom)
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:255|unique:classrooms,name,' . $classroom->id,
-            'homeroom_teacher_id' => 'required|exists:users,id',
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('classrooms', 'name')->ignore($classroom->id),
+            ],
+            'homeroom_teacher_id' => [
+                'nullable',
+                'exists:users,id',
+                function ($attribute, $value, $fail) use ($classroom) {
+                    if ($value) {
+                        $alreadyAssigned = \App\Models\Classroom::where('homeroom_teacher_id', $value)
+                            ->where('academic_year_id', $classroom->academic_year_id)
+                            ->where('id', '!=', $classroom->id) // kecuali dirinya sendiri
+                            ->exists();
+
+                        if ($alreadyAssigned) {
+                            $fail('Guru ini sudah menjadi wali kelas lain.');
+                        }
+                    }
+                },
+            ],
             'academic_year_id' => 'required|exists:academic_years,id',
             'is_active' => 'required|boolean',
         ]);
@@ -107,11 +128,28 @@ class ClassroomController extends Controller
         return to_route('classrooms.index')->with('success', 'Kelas berhasil diperbarui.');
     }
 
+
     public function destroy(Classroom $classroom)
     {
         // Cek apakah masih ada siswa yang aktif di kelas ini? (nanti setelah buat assignment)
         $classroom->delete();
 
         return to_route('classrooms.index')->with('success', 'Kelas berhasil dihapus.');
+    }
+
+    public function getStudents(Classroom $classroom)
+    {
+        $students = Student::whereHas('classrooms', function ($q) use ($classroom) {
+            $q->where('classroom_id', $classroom->id);
+        })->get();
+
+        return response()->json([
+            'classroom' => $classroom->only('id', 'name'),
+            'students' => $students->map(fn($s) => [
+                'id' => $s->id,
+                'name' => $s->name,
+                'student_id' => $s->student_id,
+            ]),
+        ]);
     }
 }

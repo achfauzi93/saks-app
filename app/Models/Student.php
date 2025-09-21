@@ -25,44 +25,46 @@ class Student extends Model
     ];
 
 
-    // relationships
-    public function assignments()
+    //relasi ke classroom via pivot table
+    public function classrooms()
     {
-        return $this->hasMany(StudentClassAssignment::class);
+        return $this->belongsToMany(Classroom::class, 'student_classroom');
     }
 
+    public function violations()
+    {
+        return $this->hasMany(StudentViolation::class);
+    }
 
     public function scopeActiveInAcademicYear($query, $academicYearId)
     {
-        return $query->whereHas('assignments', function ($q) use ($academicYearId) {
-            $q->whereNull('end_date')
-                ->whereHas('classroom', function ($c) use ($academicYearId) {
-                    $c->where('academic_year_id', $academicYearId);
-                });
+        return $query->whereHas('classrooms', function ($q) use ($academicYearId) {
+            $q->where('academic_year_id', $academicYearId)
+                ->where('classrooms.is_active', true);
         });
     }
 
     // Scope: siswa yang pernah aktif di tahun ajaran ini (untuk laporan historis)
-    public function scopeEverInAcademicYear($query, $academicYearId)
-    {
-        return $query->whereHas('assignments', function ($q) use ($academicYearId) {
-            $q->whereHas('classroom', function ($c) use ($academicYearId) {
-                $c->where('academic_year_id', $academicYearId);
-            });
-        });
-    }
+    // public function scopeEverInAcademicYear($query, $academicYearId)
+    // {
+    //     return $query->whereHas('assignments', function ($q) use ($academicYearId) {
+    //         $q->whereHas('classroom', function ($c) use ($academicYearId) {
+    //             $c->where('academic_year_id', $academicYearId);
+    //         });
+    //     });
+    // }
 
     // assesors
-    public function getIsActiveInCurrentAcademicYearAttribute()
-    {
-        $activeYear = AcademicYear::where('is_active', true)->first();
-        if (!$activeYear) return false;
+    // public function getIsActiveInCurrentAcademicYearAttribute()
+    // {
+    //     $activeYear = AcademicYear::where('is_active', true)->first();
+    //     if (!$activeYear) return false;
 
-        return $this->assignments()
-            ->whereNull('end_date')
-            ->whereHas('classroom', function ($q) use ($activeYear) {
-                $q->where('academic_year_id', $activeYear->id);
-            })
-            ->exists();
-    }
+    //     return $this->assignments()
+    //         ->whereNull('end_date')
+    //         ->whereHas('classroom', function ($q) use ($activeYear) {
+    //             $q->where('academic_year_id', $activeYear->id);
+    //         })
+    //         ->exists();
+    // }
 }

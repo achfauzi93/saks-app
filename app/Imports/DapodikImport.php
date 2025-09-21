@@ -10,6 +10,7 @@ use Maatwebsite\Excel\Concerns\WithMultipleSheets;
 use Maatwebsite\Excel\Concerns\SkipsFailures;
 use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class DapodikImport implements WithMultipleSheets
@@ -80,50 +81,33 @@ class DapodikImport implements WithMultipleSheets
 
                         $this->parent->addImportedStudentId($row[4]); // Kumpulkan student_id
 
-                        // 2. Simpan Kelas
+                        // 2. Simpan & Ambil Kelas
                         $className = $row[42] ?? null; // Rombel Saat Ini
-                        if ($className && !isset($processedClassrooms[$className])) {
-                            $processedClassrooms[$className] = true;
+                        $classroom = null;
 
-                            Classroom::updateOrCreate(
-                                [
-                                    'name' => $className,
-                                    'academic_year_id' => $this->parent->getAcademicYearId(),
-                                ],
-                                [
-                                    'is_active' => true,
-                                ]
-                            );
-                        }
-
-                        // 3. Simpan Assignment
                         if ($className) {
-                            $classroom = Classroom::where('name', $className)
-                                ->where('academic_year_id', $this->parent->getAcademicYearId())
-                                ->first();
-
-                            if ($classroom) {
-                                // Akhiri assignment aktif sebelumnya
-                                $activeAssignment = StudentClassAssignment::where('student_id', $student->id)
-                                    ->whereNull('end_date')
-                                    ->first();
-
-                                if ($activeAssignment) {
-                                    $activeAssignment->update(['end_date' => now()->subDay()]);
-                                }
-
-                                // Buat assignment baru
-                                StudentClassAssignment::updateOrCreate(
+                            if (!isset($processedClassrooms[$className])) {
+                                $processedClassrooms[$className] = Classroom::updateOrCreate(
                                     [
-                                        'student_id' => $student->id,
-                                        'classroom_id' => $classroom->id,
-                                        'start_date' => now()->toDateString(),
+                                        'name' => $className,
+                                        'academic_year_id' => $this->parent->getAcademicYearId(),
                                     ],
                                     [
-                                        'end_date' => null,
+                                        'is_active' => true,
                                     ]
                                 );
                             }
+
+                            // Ambil dari cache atau database
+                            $classroom = $processedClassrooms[$className];
+                        }
+
+                        // 3. Hubungkan ke Pivot
+                        if ($classroom) {
+                            DB::table('student_classroom')->updateOrInsert(
+                                ['student_id' => $student->id, 'classroom_id' => $classroom->id],
+                                ['created_at' => now(), 'updated_at' => now()]
+                            );
                         }
                     }
                 }
