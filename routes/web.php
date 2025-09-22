@@ -34,7 +34,7 @@ Route::group(['middleware' => ['auth']], function () {
         ->name('classrooms.students');
 
 
-    Route::resource('student-violations', StudentViolationController::class)->except(['show', 'edit', 'update']);
+    Route::resource('student-violations', StudentViolationController::class)->except(['show', 'edit']);
     Route::get('student-violations/students-by-classroom', [StudentViolationController::class, 'getStudentsByClassroom'])
         ->name('student-violations.students-by-classroom');
 
@@ -42,6 +42,7 @@ Route::group(['middleware' => ['auth']], function () {
     Route::middleware(['auth'])->group(function () {
         Route::get('homeroom', [HomeroomController::class, 'index'])->name('homeroom.index');
         Route::get('homeroom/{classroom}', [HomeroomController::class, 'show'])->name('homeroom.show');
+        Route::get('homeroom/student/{student}', [HomeroomController::class, 'showStudentHistory'])->name('homeroom.student-history');
     });
 });
 

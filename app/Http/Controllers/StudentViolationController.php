@@ -137,6 +137,59 @@ class StudentViolationController extends Controller
         return to_route('student-violations.index')->with('success', 'Catatan pelanggaran berhasil ditambahkan.');
     }
 
+    /**
+     * Update the specified resource in storage.
+     */
+    public function update(StoreStudentViolationRequest $request, StudentViolation $studentViolation) // Gunakan Form Request yang sama untuk validasi
+    {
+        $validated = $request->validated();
+
+        // Validasi tambahan: pastikan siswa masih di kelas aktif yang sama
+        // (Opsional, tergantung kebijakan Anda)
+        // Misalnya, jika tidak boleh mengganti siswa, tambahkan validasi:
+        if ($validated['student_id'] != $studentViolation->student_id) {
+            return back()->withError('Tidak diizinkan mengganti siswa dalam pelanggaran yang sudah dibuat.');
+        }
+
+        // Cari kelas aktif siswa (siswa yang sama, di tahun ajaran aktif)
+        // Ini penting untuk memastikan kelas/homeroom_teacher_id tetap sesuai
+        $activeYear = active_academic_year();
+        if (!$activeYear) {
+            return to_route('student-violations.index')->withError('Tidak ada tahun ajaran aktif.');
+        }
+
+        // Cari kelas aktif siswa ini di tahun ajaran aktif
+        // Asumsi: 1 siswa hanya di 1 kelas per tahun ajaran
+        $classroom = Classroom::where('academic_year_id', $activeYear->id)
+            ->whereHas('students', function ($q) use ($validated) {
+                $q->where('students.id', $validated['student_id']);
+            })
+            ->first();
+
+        if (!$classroom) {
+            return to_route('student-violations.index')->withError('Siswa tidak memiliki kelas aktif di tahun ajaran aktif.');
+        }
+
+        $homeroomTeacherId = $classroom->homeroom_teacher_id;
+        if (!$homeroomTeacherId) {
+            return to_route('student-violations.index')->withError('Gagal menyimpan, Kelas belum memiliki walikelas, harap hubungi admin untuk penambahan walikelas.');
+        }
+
+        // Update data pelanggaran
+        $studentViolation->update([
+            'student_id' => $validated['student_id'],
+            'violation_type_id' => $validated['violation_type_id'],
+            'violation_date' => $validated['violation_date'],
+            'classroom_id' => $classroom->id,
+            'homeroom_teacher_id' => $homeroomTeacherId,
+            'notes' => $validated['notes'],
+            'follow_up' => $validated['follow_up'] ?? null,
+            'counselor_id' => $validated['counselor_id'] ?? null,
+        ]);
+
+        return to_route('student-violations.index')->with('success', 'Catatan pelanggaran berhasil diperbarui.');
+    }
+
     public function destroy(StudentViolation $studentViolation)
     {
         $studentViolation->delete();

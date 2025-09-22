@@ -1,4 +1,5 @@
-<script setup lang="ts">
+<!-- resources/js/Pages/Homeroom/Index.vue -->
+<script setup>
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -6,37 +7,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Separator } from '@/components/ui/separator';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import AppLayout from '@/layouts/AppLayout.vue'; // Pastikan path ini benar
+import AppLayout from '@/layouts/AppLayout.vue';
 import { Link, router } from '@inertiajs/vue3';
 import {
-    AlertTriangle, // Untuk Tahun Ajaran
-    BookOpen, // Untuk Pelanggaran
+    BookOpen, // Untuk Pelanggaran / Riwayat
     Calendar,
-    ClipboardList, // Untuk Daftar Siswa
-    PlusCircle, // Untuk tambah
+    ClipboardList, // Untuk tambah (akan dihapus)
     Users,
 } from 'lucide-vue-next';
 import { computed, ref } from 'vue';
 
 // Props dari controller
-const props = defineProps<{
-    classrooms: Array<{
-        id: number;
-        name: string;
-        academic_year: {
-            name: string;
-        } | null;
-        students: Array<{
-            id: number;
-            name: string;
-            student_id: string;
-            violations_count: number;
-        }> | null;
-    }>;
-    // Misalnya, controller juga bisa mengirimkan tahun ajaran aktif jika diperlukan secara eksplisit
-    // activeAcademicYear?: { id: number; name: string } | null;
-}>();
-
+const props = defineProps({
+    classrooms: Array,
+});
 // State untuk tab aktif (opsional, bisa dikembangkan)
 const activeTab = ref('overview');
 
@@ -53,24 +37,8 @@ const totalViolations = computed(() => {
     }, 0);
 });
 
-// Fungsi untuk membuka halaman tambah pelanggaran untuk kelas tertentu
-// (Opsional: bisa langsung arahkan ke form dengan kelas pre-selected)
-const addViolationForClass = (classroomId: number) => {
-    // Arahkan ke halaman pelanggaran dengan parameter kelas
-    // Misalnya, jika route mendukung query parameter
-    router.visit(route('student-violations.create', { classroom_id: classroomId }));
-    // Atau jika ingin filter di index
-    // router.visit(route('student-violations.index', { classroom_id_filter: classroomId }));
-};
-
-// Fungsi untuk membuka halaman absensi (placeholder)
-const goToAttendance = (classroomId: number) => {
-    alert(`Navigasi ke halaman Absensi untuk kelas ${classroomId} (Fitur belum diimplementasi)`);
-    // router.visit(route('attendance.create', { classroom_id: classroomId })); // Jika ada
-};
-
 // Fungsi untuk membuka halaman daftar siswa
-const goToStudentList = (classroomId: number) => {
+const goToStudentList = (classroomId) => {
     router.visit(route('homeroom.show', classroomId)); // Menuju ke halaman detail kelas
 };
 </script>
@@ -109,7 +77,7 @@ const goToStudentList = (classroomId: number) => {
                 <Card>
                     <CardHeader class="flex flex-row items-center justify-between space-y-0 pb-2">
                         <CardTitle class="text-sm font-medium">Total Pelanggaran</CardTitle>
-                        <AlertTriangle class="h-4 w-4 text-muted-foreground" />
+                        <BookOpen class="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
                         <div class="text-2xl font-bold">{{ totalViolations }}</div>
@@ -171,9 +139,6 @@ const goToStudentList = (classroomId: number) => {
                                         <Button variant="outline" size="sm" @click="goToStudentList(classroom.id)">
                                             <BookOpen class="mr-2 h-4 w-4" /> Lihat Siswa
                                         </Button>
-                                        <Button size="sm" @click="addViolationForClass(classroom.id)">
-                                            <AlertTriangle class="mr-2 h-4 w-4" /> Catat Pelanggaran
-                                        </Button>
                                     </CardFooter>
                                 </Card>
                             </div>
@@ -199,14 +164,8 @@ const goToStudentList = (classroomId: number) => {
                                         <Badge variant="outline" class="ml-2">{{ classroom.students?.length || 0 }} Siswa</Badge>
                                     </h3>
                                     <div class="space-x-2">
-                                        <Button variant="outline" size="sm" @click="goToAttendance(classroom.id)">
-                                            <ClipboardList class="mr-2 h-4 w-4" /> Absensi
-                                        </Button>
                                         <Button variant="outline" size="sm" @click="goToStudentList(classroom.id)">
                                             <BookOpen class="mr-2 h-4 w-4" /> Daftar Siswa
-                                        </Button>
-                                        <Button size="sm" @click="addViolationForClass(classroom.id)">
-                                            <PlusCircle class="mr-2 h-4 w-4" /> Pelanggaran
                                         </Button>
                                     </div>
                                 </div>
@@ -231,7 +190,7 @@ const goToStudentList = (classroomId: number) => {
                                             </TableCell>
                                             <TableCell class="text-right">
                                                 <Button variant="link" size="sm" as-child>
-                                                    <Link :href="route('student-violations.index', { student_id: student.id })"> Lihat Detail </Link>
+                                                    <Link :href="route('homeroom.student-history', student.id)"> Lihat Riwayat </Link>
                                                 </Button>
                                             </TableCell>
                                         </TableRow>
