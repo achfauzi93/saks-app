@@ -11,15 +11,17 @@ export default defineConfigWithVueTs(
     },
     {
         rules: {
-            'vue/block-lang':["off",
+            'vue/block-lang': [
+                'off',
                 {
-                    "script" : {
-                        "lang" : "ts",
-                    }
-                }
+                    script: {
+                        lang: 'ts',
+                    },
+                },
             ],
             'vue/multi-word-component-names': 'off',
             '@typescript-eslint/no-explicit-any': 'off',
+            'vue/no-v-html': 'true',
         },
     },
     prettier,

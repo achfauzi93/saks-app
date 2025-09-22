@@ -1,11 +1,14 @@
 import '../css/app.css';
 
-import { createInertiaApp } from '@inertiajs/vue3';
+import { createInertiaApp, router, usePage } from '@inertiajs/vue3';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
-import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
+import { toast } from 'vue-sonner';
 import { ZiggyVue } from 'ziggy-js';
+
 import { initializeTheme } from './composables/useAppearance';
+
+import type { DefineComponent } from 'vue';
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
@@ -23,5 +26,15 @@ createInertiaApp({
     },
 });
 
-// This will set light / dark mode on page load...
+router.on('finish', () => {
+    const page = usePage();
+    const flash = page.props.flash as any;
+
+    if (flash?.success) toast.success(flash.success);
+    if (flash?.error) toast.error(flash.error);
+    if (flash?.warning) toast.warning(flash.warning);
+    if (flash?.info) toast(flash.info); // default style
+});
+
+// Set light / dark mode saat load
 initializeTheme();
