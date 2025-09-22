@@ -7,6 +7,7 @@ use App\Http\Controllers\StudentController;
 use App\Http\Controllers\HomeroomController;
 use App\Http\Controllers\ClassroomController;
 use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\ViolationTypeController;
 use App\Http\Controllers\StudentViolationController;
 
@@ -39,10 +40,14 @@ Route::group(['middleware' => ['auth']], function () {
         ->name('student-violations.students-by-classroom');
 
     // Homeroom — hanya untuk guru yang jadi walas
-    Route::middleware(['auth'])->group(function () {
-        Route::get('homeroom', [HomeroomController::class, 'index'])->name('homeroom.index');
-        Route::get('homeroom/{classroom}', [HomeroomController::class, 'show'])->name('homeroom.show');
-        Route::get('homeroom/student/{student}', [HomeroomController::class, 'showStudentHistory'])->name('homeroom.student-history');
+    Route::get('homeroom', [HomeroomController::class, 'index'])->name('homeroom.index');
+    Route::get('homeroom/{classroom}', [HomeroomController::class, 'show'])->name('homeroom.show');
+    Route::get('homeroom/student/{student}', [HomeroomController::class, 'showStudentHistory'])->name('homeroom.student-history');
+
+    Route::prefix('attendances')->group(function () {
+        Route::get('/', [AttendanceController::class, 'index'])->name('attendances.index');
+        Route::get('/{classroom}', [AttendanceController::class, 'show'])->name('attendances.show');
+        Route::post('/{classroom}', [AttendanceController::class, 'store'])->name('attendances.store');
     });
 });
 

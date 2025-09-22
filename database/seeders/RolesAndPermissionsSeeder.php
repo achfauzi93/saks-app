@@ -22,6 +22,13 @@ class RolesAndPermissionsSeeder extends Seeder
         Permission::create(['module_name' => 'manage roles', 'name' => 'delete-roles']);
         // permissions
         Permission::create(['module_name' => 'manage permissions', 'name' => 'view-permissions']);
+
+
+        // manage attendance
+        Permission::create(['module_name' => 'manage attendance', 'name' => 'view-attendance']);
+        Permission::create(['module_name' => 'manage attendance', 'name' => 'create-attendance']);
+        Permission::create(['module_name' => 'manage attendance', 'name' => 'edit-attendance']);
+        Permission::create(['module_name' => 'manage attendance', 'name' => 'delete-attendance']);
         // users
         Permission::create(['module_name' => 'manage users', 'name' => 'view-users']);
         Permission::create(['module_name' => 'manage users', 'name' => 'create-users']);

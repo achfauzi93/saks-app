@@ -44,6 +44,11 @@ class Student extends Model
         });
     }
 
+    public function attendances()
+    {
+        return $this->hasMany(Attendance::class);
+    }
+
     // Scope: siswa yang pernah aktif di tahun ajaran ini (untuk laporan historis)
     // public function scopeEverInAcademicYear($query, $academicYearId)
     // {

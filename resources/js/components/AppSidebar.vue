@@ -13,9 +13,20 @@ import {
     SidebarMenuButton,
     SidebarMenuItem,
 } from '@/components/ui/sidebar';
-// import { type NavItem } from '@/types';
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Calendar, ClipboardPlus, Folder, GraduationCap, HomeIcon, KeyIcon, LayoutGrid, Users, Warehouse } from 'lucide-vue-next';
+import {
+    BookOpen,
+    Calendar,
+    ClipboardPlus,
+    Folder,
+    GraduationCap,
+    HomeIcon,
+    KeyIcon,
+    LayoutGrid,
+    Presentation,
+    Users,
+    Warehouse,
+} from 'lucide-vue-next';
 import { computed } from 'vue';
 import AppLogo from './AppLogo.vue';
 
@@ -50,6 +61,12 @@ const mainNavItems = [
     { title: 'Kelas', href: '/classrooms', icon: Warehouse, can: 'view-classrooms' },
     // { title: 'Assign Kelas', href: '/student-class-assignments', icon: Handshake, can: 'view-student-class-assignments' },
     { title: 'Pelanggaran Siswa', href: '/student-violations', icon: ClipboardPlus, can: 'view-student-violations' },
+    {
+        title: 'Absensi',
+        href: '/attendances',
+        icon: Presentation, // Pastikan ikon ini diimpor
+        can: 'view-attendances', // Sesuaikan dengan permission kamu, atau hapus jika tidak pakai
+    },
     {
         title: 'Pengguna',
         href: '/users',

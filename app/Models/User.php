@@ -75,4 +75,16 @@ class User extends Authenticatable
     {
         return $this->hasMany(Classroom::class, 'homeroom_teacher_id');
     }
+
+    public function recordedAttendances()
+    {
+        return $this->hasMany(Attendance::class, 'recorded_by');
+    }
+
+    // Relasi untuk absensi siswa binaan (jika diperlukan)
+    public function homeroomAttendances()
+    {
+        return $this->hasManyThrough(Attendance::class, Classroom::class, 'homeroom_teacher_id', 'classroom_id');
+        // Catatan: Relasi ini bisa kompleks. Kita bisa pakai query builder langsung jika perlu filter lebih lanjut.
+    }
 }
